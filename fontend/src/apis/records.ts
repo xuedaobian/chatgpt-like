@@ -1,4 +1,11 @@
 import { baseURL } from '@/apis/basicConfig';
+export interface HistoryList {
+  id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}[]
 /**
  * 获取指定会话的聊天历史记录
  * @param sessionId 会话 ID
@@ -34,7 +41,7 @@ export async function fetchChatHistory(sessionId: string): Promise<{ sessionId: 
 * @throws 如果请求失败
 * @note 需要后端实现 /api/chat/sessions 端点
 */
-export async function fetchAllChatHistories(): Promise<{ sessions: { sessionId: string; title: string }[] }> {
+export async function fetchAllChatHistories(): Promise<{ sessions: HistoryList }> {
   const backendUrl = baseURL;
 
   // 注意：后端需要实现此端点 /api/chat/sessions

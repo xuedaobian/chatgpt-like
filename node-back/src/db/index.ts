@@ -50,31 +50,34 @@ export const testConnection = async (): Promise<boolean> => {
 
 // 新增：数据库初始化函数
 export const initializeDatabase = async (): Promise<void> => {
-  // Use field names consistent with the Conversation interface
-  const createConversationsTable = `
-    CREATE TABLE IF NOT EXISTS conversations (
+  // Create chats table with new structure
+  const createChatsTable = `
+    CREATE TABLE IF NOT EXISTS chats (
       id SERIAL PRIMARY KEY,
-      title VARCHAR(255) NOT NULL DEFAULT 'New Conversation',
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      user_id TEXT NOT NULL,
+      title VARCHAR(255) NOT NULL DEFAULT 'New Chat',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      title_generated_by VARCHAR(10) DEFAULT 'initial' CHECK (title_generated_by IN ('initial', 'ai', 'user')),
+      message_count_for_ai_title INTEGER DEFAULT 0
     );
   `;
 
-  // Use field names consistent with the Message interface
-  // Ensure foreign key references the correct table and column
+  // Create messages table with new structure
   const createMessagesTable = `
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
-      conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-      role VARCHAR(50) NOT NULL CHECK (role IN ('user', 'assistant')), -- Enforce role values
+      chat_id INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+      sender VARCHAR(10) NOT NULL CHECK (sender IN ('user', 'bot')),
       content TEXT NOT NULL,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `;
 
   try {
     console.log('正在初始化数据库...');
-    await pool.query(createConversationsTable);
-    console.log('表 "conversations" 已检查/创建。');
+    await pool.query(createChatsTable);
+    console.log('表 "chats" 已检查/创建。');
     await pool.query(createMessagesTable);
     console.log('表 "messages" 已检查/创建。');
     console.log('数据库初始化完成。');

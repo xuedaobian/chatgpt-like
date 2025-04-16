@@ -9,6 +9,7 @@ export const handleNewMessage = async (req: Request, res: Response): Promise<voi
   let currentSessionId: string | undefined = undefined;
   try {
     const { sessionId, newMessageContent }: ChatRequest = req.body;
+    const userId = req.body.userId || 'anonymous'; // Get user ID from request or use default
 
     // 输入验证
     if (!newMessageContent || typeof newMessageContent !== 'string' || newMessageContent.trim() === '') {
@@ -36,7 +37,7 @@ export const handleNewMessage = async (req: Request, res: Response): Promise<voi
 
     // 添加用户消息
     const userMessage: ChatMessage = { role: 'user', content: newMessageContent };
-    await chatStore.addMessage(currentSessionId, userMessage);
+    await chatStore.addMessage(currentSessionId, userMessage, userId);
     history.push(userMessage);
     console.log(`会话 ${currentSessionId} 追加用户消息:`, userMessage.content);
 

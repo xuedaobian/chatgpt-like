@@ -38,9 +38,10 @@ const startNewChat = () => {
 onMounted(() => {
   fetchAllChatHistories()
     .then((res) => {
+      console.log("Fetched chat histories:", res);
       chatHistories.value = res.sessions.map((item) => ({
-        id: item.sessionId,
-        title: item.title || `Chat ${item.sessionId.substring(0, 8)}`,
+        id: item.id,
+        title: item.title || `Chat ${item.id.substring(0, 8)}`,
         active: false, // Initially no chat is active
       }));
     })
