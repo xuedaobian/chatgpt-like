@@ -47,10 +47,10 @@ export async function handleDeepSeekStream(
         if (assistantResponseContent.trim()) {
           const assistantMessage: ChatMessage = { role: 'assistant', content: assistantResponseContent };
           // Use chatStore function to add message
-          addMessage(sessionId, assistantMessage);
-          console.log(`${logPrefix} 追加助手消息:`, assistantMessage.content);
+          await addMessage(sessionId, assistantMessage);
+          console.log(`${logPrefix} 追加助手消息到数据库:`, assistantMessage.content);
         } else {
-          console.log(`${logPrefix} 助手未返回有效内容，不添加到历史。`);
+          console.log(`${logPrefix} 助手未返回有效内容，不添加到数据库。`);
         }
         break; // Exit loop once finished
       }

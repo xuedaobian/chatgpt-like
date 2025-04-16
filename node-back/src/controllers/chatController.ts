@@ -10,7 +10,7 @@ export const handleNewMessage = async (req: Request, res: Response): Promise<voi
   try {
     const { sessionId, newMessageContent }: ChatRequest = req.body;
 
-    // Input Validation
+    // 输入验证
     if (!newMessageContent || typeof newMessageContent !== 'string' || newMessageContent.trim() === '') {
       res.status(400).json({ error: '请求体中必须包含有效的 "newMessageContent"。' });
       return;
@@ -20,103 +20,101 @@ export const handleNewMessage = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    // Get or Create Session History
+    // 获取或创建会话历史
     let history: ChatMessage[];
-    if (sessionId && chatStore.hasHistory(sessionId)) {
+    const sessionExists = sessionId ? await chatStore.hasHistory(sessionId) : false;
+
+    if (sessionId && sessionExists) {
       currentSessionId = sessionId;
-      history = chatStore.getHistory(currentSessionId)!;
+      history = await chatStore.getHistory(currentSessionId);
       console.log(`继续会话: ${currentSessionId}`);
     } else {
-      currentSessionId = uuidv4();
-      history = chatStore.createHistory(currentSessionId);
-      console.log(`开始新会话: ${currentSessionId}`);
+      currentSessionId = sessionId || uuidv4();
+      history = [];
+      console.log(`开始新会话 (或使用提供的 ID): ${currentSessionId}`);
     }
 
-    // Add User Message
+    // 添加用户消息
     const userMessage: ChatMessage = { role: 'user', content: newMessageContent };
-    chatStore.addMessage(currentSessionId, userMessage);
+    await chatStore.addMessage(currentSessionId, userMessage);
+    history.push(userMessage);
     console.log(`会话 ${currentSessionId} 追加用户消息:`, userMessage.content);
 
-    // Set SSE Headers
+    // 设置 SSE 响应头
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
     });
 
-    // Send Session ID
+    // 发送会话 ID
     const sessionEvent: SessionEvent = { sessionId: currentSessionId };
     res.write(`event: session\ndata: ${JSON.stringify(sessionEvent)}\n\n`);
     console.log(`已发送 Session ID ${currentSessionId} 给前端`);
 
-    // Process Stream
+    // 处理流
     await handleDeepSeekStream(res, history, currentSessionId);
 
   } catch (error: any) {
-    // Catch errors *before* starting the stream (e.g., validation, session creation)
     handleEndpointError(error, res, currentSessionId, '聊天');
   }
-  // Note: Errors *during* the stream are handled within handleDeepSeekStream
 };
 
 export const handleRetryMessage = async (req: Request, res: Response): Promise<void> => {
   let currentSessionId: string | undefined = undefined;
   try {
     const { sessionId }: RetryRequest = req.body;
-    currentSessionId = sessionId; // Assign early for error handling
+    currentSessionId = sessionId;
 
-    // Input Validation
+    // 输入验证
     if (!sessionId || typeof sessionId !== 'string') {
       res.status(400).json({ error: '请求体中必须包含有效的 "sessionId"。' });
       return;
     }
-    if (!chatStore.hasHistory(sessionId)) {
+    if (!await chatStore.hasHistory(sessionId)) {
       res.status(404).json({ error: `会话 "${sessionId}" 未找到。` });
       return;
     }
 
-    const history = chatStore.getHistory(currentSessionId)!;
+    let history = await chatStore.getHistory(currentSessionId)!;
 
-    // History Manipulation
+    // 历史记录操作
     if (history.length === 0) {
       res.status(400).json({ error: '无法重试空会话。' });
       return;
     }
 
-    const lastMessage = chatStore.getLastMessage(currentSessionId);
+    const lastMessage = history[history.length - 1];
+
     if (lastMessage?.role === 'assistant') {
-      const removed = chatStore.removeLastAssistantMessage(currentSessionId);
+      const removed = await chatStore.removeLastAssistantMessage(currentSessionId);
       if (removed) {
         console.log(`会话 ${currentSessionId} 重试：已移除上一条助手消息。`);
-        const newLastMessage = chatStore.getLastMessage(currentSessionId);
+        history = await chatStore.getHistory(currentSessionId);
+        const newLastMessage = history.length > 0 ? history[history.length - 1] : null;
         if (!newLastMessage || newLastMessage.role !== 'user') {
-          // This case should be rare if logic is correct, but handle defensively
           console.error(`会话 ${currentSessionId} 历史状态异常：移除助手消息后，最后一条不是用户消息。`);
-          // Optionally re-add the assistant message if needed, or just error out
-          // chatStore.addMessage(currentSessionId, lastMessage); // Restore
           res.status(409).json({ error: '历史记录状态异常，无法重试。' });
           return;
         }
+      } else {
+        console.warn(`会话 ${currentSessionId} 尝试移除助手消息失败 (可能已被移除或不存在)。`);
       }
     } else if (lastMessage?.role === 'user') {
       console.log(`会话 ${currentSessionId} 最后消息是用户，将直接基于当前历史重试。`);
-      // No action needed, proceed with current history
     } else {
-      // Handle cases like empty history (already checked) or system message at the end
       res.status(400).json({ error: '无法重试，最后一条消息不是用户或助手消息。' });
       return;
     }
 
-
-    // Set SSE Headers
+    // 设置 SSE 响应头
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
     });
-    // No session event on retry
 
-    // Process Stream (mark as retry)
+    // 处理流 (标记为重试)
     await handleDeepSeekStream(res, history, currentSessionId, true);
 
   } catch (error: any) {
@@ -124,7 +122,7 @@ export const handleRetryMessage = async (req: Request, res: Response): Promise<v
   }
 };
 
-export const getChatHistory = (req: Request<HistoryRequestParams>, res: Response): void => {
+export const getChatHistory = async (req: Request<HistoryRequestParams>, res: Response): Promise<void> => {
   const { sessionId } = req.params;
 
   if (!sessionId) {
@@ -132,24 +130,27 @@ export const getChatHistory = (req: Request<HistoryRequestParams>, res: Response
     return;
   }
 
-  const history = chatStore.getHistory(sessionId);
+  try {
+    const history = await chatStore.getHistory(sessionId);
 
-  if (history) {
-    console.log(`会话 ${sessionId}：请求历史记录，找到 ${history.length} 条。`);
-    res.status(200).json({ sessionId, history });
-  } else {
-    console.log(`会话 ${sessionId}：请求历史记录，未找到。`);
-    res.status(404).json({ error: `会话 "${sessionId}" 未找到。` });
+    if (history) {
+      console.log(`会话 ${sessionId}：请求历史记录，找到 ${history.length} 条。`);
+      res.status(200).json({ sessionId, history });
+    } else {
+      console.log(`会话 ${sessionId}：请求历史记录，未找到。`);
+      res.status(404).json({ error: `会话 "${sessionId}" 未找到。` });
+    }
+  } catch (error: any) {
+    handleEndpointError(error, res, sessionId, '获取历史记录');
   }
 };
 
-export const getAllSessions = (req: Request, res: Response): void => {
+export const getAllSessions = async (req: Request, res: Response): Promise<void> => {
   try {
-    const sessionIds = chatStore.getAllSessionIds();
+    const sessionIds = await chatStore.getAllSessionIds();
     console.log(`请求所有会话列表，找到 ${sessionIds.length} 个。`);
     res.status(200).json({ sessions: sessionIds });
   } catch (error: any) {
-    // Use the centralized handler for consistency, though errors here are less likely
     handleEndpointError(error, res, undefined, '获取会话列表');
   }
 };

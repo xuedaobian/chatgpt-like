@@ -11,14 +11,14 @@ export function handleEndpointError(
   const errorMessage = error instanceof Error ? error.message : String(error);
 
   if (!res.headersSent) {
-    // If headers not sent, send a standard JSON error response
+    // 如果响应头未发送，发送标准的 JSON 错误响应
     res.status(500).json({
       error: `处理${operation}请求时发生内部服务器错误。`,
       details: errorMessage,
       sessionId: sessionId
     });
   } else if (!res.writableEnded) {
-    // If headers sent (likely SSE), try to send an error event within the stream
+    // 如果响应头已发送（可能是 SSE），尝试在流中发送错误事件
     try {
       const errorPayload: ErrorEvent = {
         error: `处理${operation}过程中发生错误。`,
@@ -29,9 +29,9 @@ export function handleEndpointError(
       console.error(`尝试写入错误事件到流时出错 (${operation}):`, writeError);
     } finally {
       if (!res.writableEnded) {
-        res.end(); // Ensure the stream is closed after attempting to send the error
+        res.end(); // 确保在尝试发送错误后关闭流
       }
     }
   }
-  // If headers sent and stream ended, we can't notify the client further, error is logged server-side.
+  // 如果响应头已发送且流已结束，我们无法进一步通知客户端，错误已在服务器端记录。
 }

@@ -14,10 +14,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/pg": "^8.11.13",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "openai": "^4.94.0",
+    "pg": "^8.14.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
