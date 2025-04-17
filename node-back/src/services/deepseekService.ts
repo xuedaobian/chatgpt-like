@@ -2,13 +2,13 @@ import OpenAI from 'openai';
 import { Stream } from 'openai/streaming';
 import { ChatCompletionChunk } from 'openai/resources/chat/completions';
 import { Response } from 'express';
-import { DEEPSEEK_API_KEY } from '../config/env';
+import { DEEPSEEK_API_KEY, DEEPSEEK_API_BASE_URL, DEEPSEEK_MODEL } from '../config/env';
 import { ChatMessage, MessageEvent, ErrorEvent } from '../types/chat';
 import { addMessage } from '../store/chatStore';
 
 // --- Initialize DeepSeek Client ---
 const deepSeek: OpenAI = new OpenAI({
-  baseURL: 'https://api.deepseek.com/v1',
+  baseURL: DEEPSEEK_API_BASE_URL,
   apiKey: DEEPSEEK_API_KEY,
 });
 
@@ -23,9 +23,12 @@ export async function handleDeepSeekStream(
   const logPrefix = `会话 ${sessionId}${isRetry ? ' (重试)' : ''}`;
 
   try {
+    if (!DEEPSEEK_MODEL) {
+      throw new Error('DEEPSEEK_MODEL environment variable is not set.');
+    }
     console.log(`${logPrefix} 向 DeepSeek 发送历史 (${history.length}条):`, history);
     const stream: Stream<ChatCompletionChunk> = await deepSeek.chat.completions.create({
-      model: "deepseek-chat",
+      model: DEEPSEEK_MODEL,
       messages: history,
       stream: true,
     });

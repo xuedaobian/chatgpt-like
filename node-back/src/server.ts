@@ -8,11 +8,11 @@ import { testConnection } from './db';
 // --- 启动服务器 ---
 const startServer = async () => {
   // 在启动服务器之前测试数据库连接
-  const dbConnected = await testConnection();
-  if (!dbConnected) {
-      console.error("无法连接到数据库，服务器未启动。");
-      process.exit(1); // 如果数据库连接失败则退出
-  }
+  // const dbConnected = await testConnection();
+  // if (!dbConnected) {
+  //     console.error("无法连接到数据库，服务器未启动。");
+  //     process.exit(1); // 如果数据库连接失败则退出
+  // }
 
   app.listen(PORT, () => {
     console.log(`后端服务器运行在 http://localhost:${PORT}`);

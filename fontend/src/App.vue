@@ -1,55 +1,85 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, reactive, onMounted, toRef } from "vue";
 import HelloWorld from "@/components/HelloWorld.vue";
 import Sidebar from "@/components/Sidebar.vue";
-
-// Import the API function
+import { useChatStream, type DisplayMessage } from '@/hooks/useChatStream';
 import { fetchChatHistory, fetchAllChatHistories } from "@/apis/records";
 
-const chatHistories = ref<Array<{ id: string; title: string; active: boolean }>>([]); // Initialize with type
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: DisplayMessage[];
+  sessionId?: string;
+  isLoading: boolean;
+  error: string | null;
+}
 
+const chatHistories = ref<Array<{ id: string; title: string; active: boolean }>>([]);
+const sessions = reactive<Record<string, ChatSession>>({});
+const currentSessionId = ref<string | null>(null);
 
-const selectHistory = (id: string) => {
-  chatHistories.value = chatHistories.value.map((h) => ({
-    ...h,
-    active: h.id === id,
-  }));
-  // Potentially fetch the specific history details here using fetchChatHistory(id)
-};
-
-const startNewChat = () => {
-  chatHistories.value = chatHistories.value.map((h) => ({
-    ...h,
+// 初始化所有历史
+onMounted(async () => {
+  const res = await fetchAllChatHistories();
+  chatHistories.value = res.sessions.map((item: any) => ({
+    id: item.id,
+    title: item.title || `Chat ${item.id.substring(0, 8)}`,
     active: false,
   }));
+});
 
-  const newId = Date.now().toString();
-
-  const newChat = {
-    id: newId,
-    title: "New Chat", // Changed default title
-    active: true,
-  };
-
-  chatHistories.value = [newChat, ...chatHistories.value];
+// 切换会话
+const selectHistory = async (id: string) => {
+  chatHistories.value.forEach(h => h.active = h.id === id);
+  currentSessionId.value = id;
+  if (!sessions[id]) {
+    // 首次加载
+    const res = await fetchChatHistory(id);
+    sessions[id] = {
+      id,
+      title: res.title || `Chat ${id.substring(0, 8)}`,
+      messages: res.history || [],
+      sessionId: id,
+      isLoading: false,
+      error: null,
+    };
+  }
 };
 
-// Fetch the list of chat histories when the component mounts
-onMounted(() => {
-  fetchAllChatHistories()
-    .then((res) => {
-      console.log("Fetched chat histories:", res);
-      chatHistories.value = res.sessions.map((item) => ({
-        id: item.id,
-        title: item.title || `Chat ${item.id.substring(0, 8)}`,
-        active: false, // Initially no chat is active
-      }));
-    })
-    .catch((err) => {
-      console.error("Error fetching chat histories:", err);
-      // Optionally: Show an error message to the user
-    });
-})
+// 新建会话
+const startNewChat = () => {
+  const newId = Date.now().toString();
+  chatHistories.value.forEach(h => h.active = false);
+  chatHistories.value.unshift({ id: newId, title: "New Chat", active: true });
+  sessions[newId] = {
+    id: newId,
+    title: "New Chat",
+    messages: [],
+    sessionId: undefined,
+    isLoading: false,
+    error: null,
+  };
+  currentSessionId.value = newId;
+};
+
+// 统一的流式 hook，每次切换会话时重建
+const {
+  sendMessage,
+  cancelStream,
+  retryMessage,
+} = useChatStream(
+  () => {
+    const id = currentSessionId.value!;
+    // Use toRef to create refs for the properties needed by the hook
+    return {
+      messages: toRef(sessions[id], 'messages'),
+      sessionId: toRef(sessions[id], 'sessionId'),
+      isLoading: toRef(sessions[id], 'isLoading'),
+      error: toRef(sessions[id], 'error'),
+    };
+  }
+);
+
 </script>
 
 <template>
@@ -61,38 +91,18 @@ onMounted(() => {
         @new-chat="startNewChat"
       />
     </div>
-
     <div class="flex-1 flex justify-center items-start py-2 h-full">
-      <div class="w-[800px] h-full"> 
-      <HelloWorld />
+      <div class="w-[800px] h-full">
+        <HelloWorld
+          v-if="currentSessionId"
+          :messages="sessions[currentSessionId]?.messages"
+          :isLoading="sessions[currentSessionId]?.isLoading"
+          :error="sessions[currentSessionId]?.error"
+          @send="sendMessage"
+          @cancel="cancelStream"
+          @retry="retryMessage"
+        />
       </div>
     </div>
   </div>
 </template>
-
-<style>
-body {
-  margin: 0;
-  padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-    Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-}
-
-html,
-body {
-  height: 100%;
-}
-
-#app {
-  height: 100%;
-}
-
-/* Add styles for sidebar positioning */
-.sidebar-container {
-  position: sticky;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background-color: #f9fafb;
-}
-</style>

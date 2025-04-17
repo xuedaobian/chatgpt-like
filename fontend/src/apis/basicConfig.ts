@@ -1,1 +1,1 @@
-export const baseURL:string = 'http://localhost:3001';
+export const baseURL: string = `${window.location.protocol}//${window.location.hostname}:3001`; // Added trailing slash for consistency

@@ -3,6 +3,9 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
+const DEEPSEEK_API_BASE_URL = process.env.DEEPSEEK_API_BASE_URL;
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL;
+
 const PORT = process.env.PORT || 3001;
 
 // Database Configuration
@@ -25,6 +28,8 @@ if (!DB_USER || !DB_PASSWORD || !DB_NAME) {
 
 export {
     DEEPSEEK_API_KEY,
+    DEEPSEEK_API_BASE_URL,
+    DEEPSEEK_MODEL,
     PORT,
     DB_HOST,
     DB_PORT,
